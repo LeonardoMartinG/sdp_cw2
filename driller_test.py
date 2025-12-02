@@ -4,7 +4,7 @@ from pydriller import Repository
 
 # 1. Collect commit data from the repo
 
-repo_url = "https://github.com/ishepard/pydriller"
+repo_url = "https://github.com/apache/superset.git"#testing on the apache project repo
 
 data = []
 for commit in Repository(repo_url).traverse_commits():
