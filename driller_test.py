@@ -3,15 +3,15 @@ import pandas as pd
 from pathlib import Path
 from pydriller import Repository, ModificationType
 
-# =========================================================
+
 # CONFIG
-# =========================================================
+
 
 repo_url = "https://github.com/apache/commons-lang.git"  # USE JAVA-BASED APACHE PROJECT
 
-# =========================================================
+
 # HELPERS: identify prod vs test files
-# =========================================================
+
 
 def is_test_file(path: str) -> bool:
     path = path.replace("\\", "/")
@@ -31,9 +31,9 @@ def is_prod_file(path: str) -> bool:
         not name.endswith(("Test", "Tests", "IT", "IntegrationTest"))
     )
 
-# =========================================================
+
 # 1. COLLECT COMMIT + FILE DATA
-# =========================================================
+
 
 rows = []
 
@@ -69,9 +69,8 @@ if df.empty:
 df["date"] = pd.to_datetime(df["date"], utc=True).dt.tz_convert(None)
 df["month"] = df["date"].dt.to_period("M")
 
-# =========================================================
+
 # FEATURE 1: Commit activity over time
-# =========================================================
 
 commits_per_month = df.drop_duplicates("commit").groupby("month").size()
 
@@ -85,9 +84,9 @@ plt.grid(True)
 plt.tight_layout()
 plt.show()
 
-# =========================================================
+
 # FEATURE 2: Test vs Production file additions over time
-# =========================================================
+
 
 adds_per_month = df.groupby(["month", "file_type"]).size().unstack(fill_value=0)
 
@@ -103,9 +102,7 @@ plt.grid(True)
 plt.tight_layout()
 plt.show()
 
-# =========================================================
 # FEATURE 3: Commit size vs commit intent
-# =========================================================
 
 commit_summary = df.groupby("commit").agg({
     "file_type": lambda x: set(x),
