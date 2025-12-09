@@ -1,4 +1,6 @@
-# This script collects those related information by mining the git repository
+# This script could be used to analyze modified Java files and their methods in a Git repository.
+# And it can be used as a debugging tool for the main script, because it provides detailed information of modified files and methods.
+# To start, simply specify the path to the repo and you can also specify the number of commits to analyze and whether to show detailed diffs.
 
 from pydriller import Repository
 
