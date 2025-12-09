@@ -4,20 +4,16 @@ from pathlib import Path
 from pydriller import Repository
 
 
-# =========================
-# CONFIG
-# =========================
+#congif
 
 START_DATE = "2018-01-01"
 END_DATE   = "2023-12-31"
 
-# ✅ Local clone ONLY (must already exist)
+#local clone
 REPO_PATH = "C:/git/cloudstack"
 
 
-# =========================
-# HELPERS
-# =========================
+#helpers
 
 def is_test_file(path: str) -> bool:
     path = path.replace("\\", "/")
@@ -38,9 +34,7 @@ def is_prod_file(path: str) -> bool:
     )
 
 
-# =========================
-# DATA COLLECTION
-# =========================
+#data collection
 
 rows = []
 
@@ -82,9 +76,7 @@ for i, commit in enumerate(repo.traverse_commits()):
         })
 
 
-# =========================
-# DATAFRAME SETUP
-# =========================
+#dataframe setup
 
 df = pd.DataFrame(rows)
 
@@ -96,9 +88,9 @@ df["date"] = pd.to_datetime(df["date"], utc=True).dt.tz_convert(None)
 df["month"] = df["date"].dt.to_period("M")
 
 
-# =========================
+
 # FEATURE 1: Commit activity over time
-# =========================
+
 
 commits_per_month = (
     df.drop_duplicates("commit")
@@ -117,9 +109,9 @@ plt.tight_layout()
 plt.show()
 
 
-# =========================
+
 # FEATURE 2: Test vs Production file additions over time
-# =========================
+
 
 adds_per_month = (
     df.groupby(["month", "file_type"])
@@ -140,9 +132,9 @@ plt.tight_layout()
 plt.show()
 
 
-# =========================
+
 # FEATURE 3: Commit size vs intent
-# =========================
+
 
 commit_summary = (
     df.groupby("commit")
