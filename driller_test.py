@@ -10,7 +10,8 @@ START_DATE = "2018-01-01"
 END_DATE   = "2023-12-31"
 
 #local clone
-REPO_PATH = "C:/git/cloudstack"
+# REPO_PATH = "/path/to/your/local/clone/of/commons-lang"
+REPO_PATH = "/home/yaoguyuan/Desktop/commons-lang"
 
 
 #helpers
@@ -55,15 +56,28 @@ for i, commit in enumerate(repo.traverse_commits()):
 
     commit_size = len(modified_files)
 
+    cur_test_files = []
+    cur_prod_files = []
+    num_tdd_pairs = 0
+    cur_tdd_pairs = []
+
     for mod in modified_files:
+
+        # only consider Java files
         path = mod.new_path or mod.old_path
         if not path or not path.endswith(".java"):
             continue
 
+        # only consider added files
+        if mod.change_type.name != "ADD":
+            continue
+
         if is_test_file(path):
             file_type = "test"
+            cur_test_files.append(path)
         elif is_prod_file(path):
             file_type = "prod"
+            cur_prod_files.append(path)
         else:
             continue
 
@@ -75,6 +89,31 @@ for i, commit in enumerate(repo.traverse_commits()):
             "commit_size": commit_size
         })
 
+    # If a production file and the corresponding test file are added in the same commit,
+    # We consider this commit to strictly follow the test-first principle.
+    for prod_path in cur_prod_files:
+        prod_name = Path(prod_path).stem
+        expected_test_names = {
+            f"{prod_name}Test",
+            f"{prod_name}Tests",
+            f"{prod_name}IT",
+            f"{prod_name}IntegrationTest"
+        }
+        for test_path in cur_test_files:
+            test_name = Path(test_path).stem
+            if test_name in expected_test_names:
+                num_tdd_pairs += 1
+                cur_tdd_pairs.append({
+                    "prod_path": prod_path,
+                    "test_path": test_path
+                })
+
+    if num_tdd_pairs > 0:
+        print(f"Commit {commit.hash} has followed TDD with {num_tdd_pairs} pairs:")
+        for pair in cur_tdd_pairs:
+            print(f"  Prod: {pair['prod_path']}")
+            print(f"  Test: {pair['test_path']}")
+        print("")
 
 #dataframe setup
 
