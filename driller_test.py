@@ -187,6 +187,15 @@ plt.grid(axis='y', alpha=0.3)
 plt.tight_layout()
 plt.show()
 
+# SOME EXPLANATION AND CHALLENGES
+# 1. The dominant peak of 'atomic commits' might be due to the use of 'squash and merge' strategy. 
+# In this case, even if developers do not follow TDD and simply add test files after production files in separate initial commits,
+# the final squashed commit will show both files added simultaneously, leading to a distance of 0.
+# 2. The analysis only considers added files. Modifications to existing files are not accounted.
+# For instance, if a developer just added a method to an existing test file after adding a method in an existing production file,
+# this scenario is not captured in the current distance metric.
+
+
 # FEATURE 1: Commit activity over time
 
 
