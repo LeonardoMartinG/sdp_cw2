@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import pandas as pd
+import numpy as np
 from pathlib import Path
 from pydriller import Repository
 
@@ -41,8 +42,8 @@ rows = []
 
 repo = Repository(
     REPO_PATH,
-    since=pd.Timestamp(START_DATE),
-    to=pd.Timestamp(END_DATE),
+    #since=pd.Timestamp(START_DATE),
+    #to=pd.Timestamp(END_DATE),
     only_no_merge=True
 )
 
@@ -82,6 +83,7 @@ for i, commit in enumerate(repo.traverse_commits()):
             continue
 
         rows.append({
+            "commit_index": i,
             "commit": commit.hash,
             "date": commit.committer_date,
             "file_type": file_type,
@@ -113,6 +115,7 @@ for i, commit in enumerate(repo.traverse_commits()):
         for pair in cur_tdd_pairs:
             print(f"  Prod: {pair['prod_path']}")
             print(f"  Test: {pair['test_path']}")
+        print(f"Commit message: {commit.msg}")
         print("")
 
 #dataframe setup
@@ -126,7 +129,63 @@ df["date"] = pd.to_datetime(df["date"], utc=True).dt.tz_convert(None)
 
 df["month"] = df["date"].dt.to_period("M")
 
+# In order to detect TDD adherence, we calculate the distance between each test file and its production file.
+# For instance, if the distance == -1, it means the test file was added one commit before the production file, which is a good sign of TDD adherence.
 
+# split dataframes to production and test files
+prod_df = df[df["file_type"] == "prod"].copy()
+test_df = df[df["file_type"] == "test"].copy()
+# extract the stem for easy matching
+prod_df["stem"] = prod_df["path"].apply(lambda p: Path(p).stem)
+test_df["stem"] = test_df["path"].apply(lambda p: Path(p).stem)
+# build a lookup of test files for quick access
+test_lookup = test_df.groupby("stem")["commit_index"].min().to_dict()
+
+distances = []
+for _, row in prod_df.iterrows():
+    prod_stem = row["stem"]
+    prod_commit_index = row["commit_index"]
+    # derive the expected test stem
+    expected_test_stems = [
+        f"{prod_stem}Test",
+        f"{prod_stem}Tests",
+        f"{prod_stem}IT",
+        f"{prod_stem}IntegrationTest"
+    ]
+    # set default test_commit_index as None meaning not found
+    test_commit_index = None
+    for test_stem in expected_test_stems:
+        if test_stem in test_lookup:
+            test_commit_index = test_lookup[test_stem]
+            break
+    if test_commit_index is not None:
+        distance = test_commit_index - prod_commit_index
+        distances.append(distance)
+    else:
+        distances.append(None)
+
+# Distribution of Test-Prod-Distance
+valid_distances = [d for d in distances if d is not None]
+plt.figure(figsize=(12, 6))
+bins = np.arange(-50, 51, 1)  # from -50 to 50 with a bin width of 1
+# Histogram plotting
+counts, _, patches = plt.hist(valid_distances, bins=bins, color='skyblue', edgecolor='black', alpha=0.7)
+# Highlight the bin where distance == 0
+zero_index = np.searchsorted(bins, 0)
+if 0 <= zero_index < len(patches):
+    patches[zero_index].set_facecolor('crimson')
+    patches[zero_index].set_label('Atomic Commit (Same time)')
+# Add vertical lines and annotations
+plt.axvline(0, color='red', linestyle='--', linewidth=1)
+plt.text(25, plt.ylim()[1]*0.8, 'Test After', fontsize=12, color='green', ha='center')
+plt.text(-25, plt.ylim()[1]*0.8, 'Test First', fontsize=12, color='orange', ha='center')
+plt.title("Distribution of Test-Prod-Distance (Test Index - Prod Index)")
+plt.xlabel("Distance in Commits\n<-- Test First (-ve)  |  Atomic (0)  |  Test After (+ve) -->")
+plt.ylabel("Frequency (Number of Pairs)")
+plt.legend()
+plt.grid(axis='y', alpha=0.3)
+plt.tight_layout()
+plt.show()
 
 # FEATURE 1: Commit activity over time
 
