@@ -178,26 +178,39 @@ for _, row in prod_df.iterrows():
 
 # Distribution of Test-Prod-Distance
 valid_distances = [d for d in distances if d is not None]
-plt.figure(figsize=(12, 6))
-bins = np.arange(-100, 101, 1)  # from -50 to 50 with a bin width of 1
-# Histogram plotting
-counts, _, patches = plt.hist(valid_distances, bins=bins, color='skyblue', edgecolor='black', alpha=0.7)
-# Highlight the bin where distance == 0
-zero_index = np.searchsorted(bins, 0)
-if 0 <= zero_index < len(patches):
-    patches[zero_index].set_facecolor('crimson')
-    patches[zero_index].set_label('Atomic Commit (Same time)')
-# Add vertical lines and annotations
-plt.axvline(0, color='red', linestyle='--', linewidth=1)
-plt.text(25, plt.ylim()[1]*0.8, 'Test After', fontsize=12, color='green', ha='center')
-plt.text(-25, plt.ylim()[1]*0.8, 'Test First', fontsize=12, color='orange', ha='center')
-plt.title("Distribution of Test-Prod-Distance (Test Index - Prod Index)")
-plt.xlabel("Distance in Commits\n<-- Test First (-ve)  |  Atomic (0)  |  Test After (+ve) -->")
-plt.ylabel("Frequency (Number of Pairs)")
-plt.legend()
+test_first = sum(d < 0 for d in valid_distances)
+atomic = sum(d == 0 for d in valid_distances)
+test_after = sum(d > 0 for d in valid_distances)
+labels = ['Test First (d < 0)', 'Atomic (d = 0)', 'Test After (d > 0)']
+counts = [test_first, atomic, test_after]
+plt.figure(figsize=(8, 5))
+plt.bar(labels, counts)
+plt.ylabel('Frequency')
+plt.title('Test–Production Commit Ordering')
 plt.grid(axis='y', alpha=0.3)
 plt.tight_layout()
 plt.show()
+
+# plt.figure(figsize=(12, 6))
+# bins = np.arange(-100, 101, 1)  # from -50 to 50 with a bin width of 1
+# # Histogram plotting
+# counts, _, patches = plt.hist(valid_distances, bins=bins, color='skyblue', edgecolor='black', alpha=0.7)
+# # Highlight the bin where distance == 0
+# zero_index = np.searchsorted(bins, 0)
+# if 0 <= zero_index < len(patches):
+#     patches[zero_index].set_facecolor('crimson')
+#     patches[zero_index].set_label('Atomic Commit (Same time)')
+# # Add vertical lines and annotations
+# plt.axvline(0, color='red', linestyle='--', linewidth=1)
+# plt.text(25, plt.ylim()[1]*0.8, 'Test After', fontsize=12, color='green', ha='center')
+# plt.text(-25, plt.ylim()[1]*0.8, 'Test First', fontsize=12, color='orange', ha='center')
+# plt.title("Distribution of Test-Prod-Distance (Test Index - Prod Index)")
+# plt.xlabel("Distance in Commits\n<-- Test First (-ve)  |  Atomic (0)  |  Test After (+ve) -->")
+# plt.ylabel("Frequency (Number of Pairs)")
+# plt.legend()
+# plt.grid(axis='y', alpha=0.3)
+# plt.tight_layout()
+# plt.show()
 
 # SOME EXPLANATION AND CHALLENGES
 # 1. The dominant peak of 'atomic commits' might be due to the use of 'squash and merge' strategy. 
