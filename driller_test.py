@@ -11,8 +11,8 @@ START_DATE = "2018-01-01"
 END_DATE   = "2023-12-31"
 
 #local clone
-# REPO_PATH = "/path/to/your/local/clone/of/commons-lang"
-REPO_PATH = "/home/yaoguyuan/Desktop/commons-lang"
+REPO_PATH = "repos/commons-lang"
+# REPO_PATH = "/home/yaoguyuan/Desktop/commons-lang"
 
 
 #helpers
@@ -26,14 +26,24 @@ def is_test_file(path: str) -> bool:
         and name.endswith(("Test", "Tests", "IT", "IntegrationTest"))
     )
 
+# def is_prod_file(path: str) -> bool:
+#     path = path.replace("\\", "/")
+#     name = Path(path).stem
+#     return (
+#         path.endswith(".java")
+#         and "src/main" in path
+#         and not name.endswith(("Test", "Tests", "IT", "IntegrationTest"))
+#     )
+
 def is_prod_file(path: str) -> bool:
     path = path.replace("\\", "/")
     name = Path(path).stem
     return (
         path.endswith(".java")
-        and "src/main" in path
+        and ("src/main" in path or "src/java" in path)
         and not name.endswith(("Test", "Tests", "IT", "IntegrationTest"))
     )
+
 
 
 #data collection
@@ -129,6 +139,8 @@ df["date"] = pd.to_datetime(df["date"], utc=True).dt.tz_convert(None)
 
 df["month"] = df["date"].dt.to_period("M")
 
+df.to_csv('driller_output.csv', index=False)
+
 # In order to detect TDD adherence, we calculate the distance between each test file and its production file.
 # For instance, if the distance == -1, it means the test file was added one commit before the production file, which is a good sign of TDD adherence.
 
@@ -167,7 +179,7 @@ for _, row in prod_df.iterrows():
 # Distribution of Test-Prod-Distance
 valid_distances = [d for d in distances if d is not None]
 plt.figure(figsize=(12, 6))
-bins = np.arange(-50, 51, 1)  # from -50 to 50 with a bin width of 1
+bins = np.arange(-100, 101, 1)  # from -50 to 50 with a bin width of 1
 # Histogram plotting
 counts, _, patches = plt.hist(valid_distances, bins=bins, color='skyblue', edgecolor='black', alpha=0.7)
 # Highlight the bin where distance == 0
