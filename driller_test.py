@@ -45,9 +45,19 @@ def extract_package(path: str) -> str:
         return path.split("src/test/java/")[1].rsplit("/", 1)[0]
     return ""
 
+def is_bugfix_message(msg: str) -> bool:
+    bugfix_keywords = [
+        "fix", "fixed", "fixes", "fixing",
+    ]
+    msg_lower = msg.lower()
+    return any(keyword in msg_lower for keyword in bugfix_keywords)
+
 #data collection
 
 rows = []
+num_all_commits = 0
+num_fix_commits = 0
+num_tdb_commits = 0
 
 repo = Repository(
     REPO_PATH,
@@ -57,6 +67,10 @@ repo = Repository(
 )
 
 for i, commit in enumerate(repo.traverse_commits()):
+    num_all_commits += 1
+    if is_bugfix_message(commit.msg):
+        num_fix_commits += 1
+
     if i % 500 == 0:
         print(f"Processed {i} commits")
 
@@ -66,10 +80,12 @@ for i, commit in enumerate(repo.traverse_commits()):
 
     commit_size = len(modified_files)
 
-    cur_test_files = []
-    cur_prod_files = []
-    num_tdd_pairs = 0
-    cur_tdd_pairs = []
+    added_test_files = []
+    added_prod_files = []
+    modified_test_files = []
+    modified_prod_files = []
+    num_sync_pairs = 0
+    cur_sync_pairs = []
 
     for mod in modified_files:
 
@@ -78,32 +94,44 @@ for i, commit in enumerate(repo.traverse_commits()):
         if not path or not path.endswith(".java"):
             continue
 
-        # only consider added files
-        if mod.change_type.name != "ADD":
+        # only consider added or modified files
+        if mod.change_type.name != "ADD" and mod.change_type.name != "MODIFY":
             continue
 
         if is_test_file(path):
             file_type = "test"
-            cur_test_files.append(path)
+            if mod.change_type.name == "ADD":
+                added_test_files.append(path)
+            else:
+                modified_test_files.append(path)
         elif is_prod_file(path):
             file_type = "prod"
-            cur_prod_files.append(path)
+            if mod.change_type.name == "ADD":
+                added_prod_files.append(path)
+            else:
+                modified_prod_files.append(path)
         else:
             continue
 
-        rows.append({
-            "commit_index": i,
-            "commit": commit.hash,
-            "date": commit.committer_date,
-            "file_type": file_type,
-            "path": path.replace("\\", "/"),
-            "commit_size": commit_size,
-            "package": extract_package(path)
-        })
+        if mod.change_type.name == "ADD":
+            rows.append({
+                "commit_index": i,
+                "commit": commit.hash,
+                "date": commit.committer_date,
+                "file_type": file_type,
+                "path": path.replace("\\", "/"),
+                "commit_size": commit_size,
+                "package": extract_package(path)
+            })
 
     # If a production file and the corresponding test file are added in the same commit,
-    # We consider this commit to strictly follow the test-first principle.
-    for prod_path in cur_prod_files:
+    # though we are unable to confirm TDD adherence as we don't know the order of additions,
+    # we could do some heuristic analysis here:
+
+    # e.g.1, to detect TDB(Test Driven Bugfixing) behavior
+    # that is, to fix a bug in production code, the developer first adds a test to replicate the bug
+    # which could be a sign of TDD adherence
+    for prod_path in modified_prod_files:
         prod_name = Path(prod_path).stem
         expected_test_names = {
             f"{prod_name}Test",
@@ -111,22 +139,58 @@ for i, commit in enumerate(repo.traverse_commits()):
             f"{prod_name}IT",
             f"{prod_name}IntegrationTest"
         }
-        for test_path in cur_test_files:
+        for test_path in modified_test_files:
             test_name = Path(test_path).stem
             if test_name in expected_test_names:
-                num_tdd_pairs += 1
-                cur_tdd_pairs.append({
+                num_sync_pairs += 1
+                cur_sync_pairs.append({
                     "prod_path": prod_path,
                     "test_path": test_path
                 })
 
-    if num_tdd_pairs > 0:
-        print(f"Commit {commit.hash} has followed TDD with {num_tdd_pairs} pairs:")
-        for pair in cur_tdd_pairs:
-            print(f"  Prod: {pair['prod_path']}")
-            print(f"  Test: {pair['test_path']}")
-        print(f"Commit message: {commit.msg}")
-        print("")
+    if num_sync_pairs > 0:
+        if is_bugfix_message(commit.msg):
+            num_tdb_commits += 1
+            print(f"Commit {commit.hash} is likely to involve TDB behavior.")
+            print(f"Commit message: {commit.msg}")
+
+# tdb vs non-tdb visualization
+non_tdb_all_count = num_all_commits - num_tdb_commits
+sizes_all = [num_tdb_commits, non_tdb_all_count]
+labels_all = ['TDB Commits', 'Other Commits']
+colors_all = ['#ff9999', '#66b3ff'] 
+
+# tdb vs non-tdb fix visualization
+non_tdb_fix_count = num_fix_commits - num_tdb_commits
+sizes_fix = [num_tdb_commits, non_tdb_fix_count]
+labels_fix = ['TDB Commits', 'Other Fix Commits']
+colors_fix = ['#ff9999', '#99ff99'] 
+
+fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+
+# Pie chart for all commits
+axes[0].pie(sizes_all, 
+            labels=labels_all, 
+            autopct='%1.1f%%',
+            startangle=140,    
+            colors=colors_all, 
+            explode=(0.1, 0),  
+            shadow=True)
+axes[0].set_title(f'TDB Ratio in All Commits\n(Total: {num_all_commits})')
+
+# Pie chart for bug-fix commits
+axes[1].pie(sizes_fix, 
+            labels=labels_fix, 
+            autopct='%1.1f%%', 
+            startangle=140, 
+            colors=colors_fix, 
+            explode=(0.1, 0), 
+            shadow=True)
+axes[1].set_title(f'TDB Ratio in BugFix Commits\n(Total Fixes: {num_fix_commits})')
+
+# Adjust layout and show plot
+plt.tight_layout()
+plt.show()
 
 #dataframe setup
 
