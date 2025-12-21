@@ -1,12 +1,10 @@
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
-from pathlib import Path
 from pydriller import Repository
-
+from utils import *
 
 #congif
-
 START_DATE = "2018-01-01"
 END_DATE   = "2023-12-31"
 
@@ -14,145 +12,111 @@ END_DATE   = "2023-12-31"
 #REPO_PATH = "repos/commons-lang"
 REPO_PATH = "/home/yaoguyuan/Desktop/commons-lang"
 
-
-#helpers
-
-def is_test_file(path: str) -> bool:
-    path = path.replace("\\", "/")
-    name = Path(path).stem
-    return (
-        path.endswith(".java")
-        and "src/test" in path
-        and name.endswith(("Test", "Tests", "IT", "IntegrationTest"))
-    )
-
-def is_prod_file(path: str) -> bool:
-    path = path.replace("\\", "/")
-    name = Path(path).stem
-    return (
-        path.endswith(".java")
-        and ("src/main" in path or "src/java" in path)
-        and not name.endswith(("Test", "Tests", "IT", "IntegrationTest"))
-    )
-
-def extract_package(path: str) -> str:
-    path = path.replace("\\", "/")
-    if "src/java/" in path:
-        return path.split("src/java/")[1].rsplit("/", 1)[0]
-    if "src/main/java/" in path:
-        return path.split("src/main/java/")[1].rsplit("/", 1)[0]
-    if "src/test/java/" in path:
-        return path.split("src/test/java/")[1].rsplit("/", 1)[0]
-    return ""
-
-def is_bugfix_message(msg: str) -> bool:
-    bugfix_keywords = [
-        "fix", "fixed", "fixes", "fixing",
-    ]
-    msg_lower = msg.lower()
-    return any(keyword in msg_lower for keyword in bugfix_keywords)
-
 #data collection
-
 rows = []
 num_all_commits = 0
 num_fix_commits = 0
 num_tdb_commits = 0
 
-repo = Repository(
-    REPO_PATH,
-    #since=pd.Timestamp(START_DATE),
-    #to=pd.Timestamp(END_DATE),
-    only_no_merge=True
-)
+branches = get_all_branches(REPO_PATH)
+# print(f"All branches in the repository: {branches}")
+processed_commits = set()
 
-for i, commit in enumerate(repo.traverse_commits()):
-    num_all_commits += 1
-    if is_bugfix_message(commit.msg):
-        num_fix_commits += 1
+for branch in branches:
+    # print(f"Processing branch: {branch}")
+    repo = Repository(REPO_PATH, only_in_branch=branch, only_no_merge=True)
+    for i, commit in enumerate(repo.traverse_commits()):
+        # only consider unique commits
+        if commit.hash in processed_commits:
+            continue
+        processed_commits.add(commit.hash)
 
-    if i % 500 == 0:
-        print(f"Processed {i} commits")
+        num_all_commits += 1
+        if is_bugfix_message(commit.msg):
+            num_fix_commits += 1
 
-    modified_files = commit.modified_files
-    if not modified_files:
-        continue
+        if i % 500 == 0:
+            print(f"Processed {i} commits")
 
-    commit_size = len(modified_files)
-
-    added_test_files = []
-    added_prod_files = []
-    modified_test_files = []
-    modified_prod_files = []
-    num_sync_pairs = 0
-    cur_sync_pairs = []
-
-    for mod in modified_files:
-
-        # only consider Java files
-        path = mod.new_path or mod.old_path
-        if not path or not path.endswith(".java"):
+        modified_files = commit.modified_files
+        if not modified_files:
             continue
 
-        # only consider added or modified files
-        if mod.change_type.name != "ADD" and mod.change_type.name != "MODIFY":
-            continue
+        commit_size = len(modified_files)
 
-        if is_test_file(path):
-            file_type = "test"
-            if mod.change_type.name == "ADD":
-                added_test_files.append(path)
+        added_test_files = []
+        added_prod_files = []
+        modified_test_files = []
+        modified_prod_files = []
+        num_sync_pairs = 0
+        cur_sync_pairs = []
+
+        for mod in modified_files:
+
+            # only consider Java files
+            path = mod.new_path or mod.old_path
+            if not path or not path.endswith(".java"):
+                continue
+
+            # only consider added or modified files
+            if mod.change_type.name != "ADD" and mod.change_type.name != "MODIFY":
+                continue
+
+            if is_test_file(path):
+                file_type = "test"
+                if mod.change_type.name == "ADD":
+                    added_test_files.append(path)
+                else:
+                    modified_test_files.append(path)
+            elif is_prod_file(path):
+                file_type = "prod"
+                if mod.change_type.name == "ADD":
+                    added_prod_files.append(path)
+                else:
+                    modified_prod_files.append(path)
             else:
-                modified_test_files.append(path)
-        elif is_prod_file(path):
-            file_type = "prod"
+                continue
+
             if mod.change_type.name == "ADD":
-                added_prod_files.append(path)
-            else:
-                modified_prod_files.append(path)
-        else:
-            continue
-
-        if mod.change_type.name == "ADD":
-            rows.append({
-                "commit_index": i,
-                "commit": commit.hash,
-                "date": commit.committer_date,
-                "file_type": file_type,
-                "path": path.replace("\\", "/"),
-                "commit_size": commit_size,
-                "package": extract_package(path)
-            })
-
-    # If a production file and the corresponding test file are added in the same commit,
-    # though we are unable to confirm TDD adherence as we don't know the order of additions,
-    # we could do some heuristic analysis here:
-
-    # e.g.1, to detect TDB(Test Driven Bugfixing) behavior
-    # that is, to fix a bug in production code, the developer first adds a test to replicate the bug
-    # which could be a sign of TDD adherence
-    for prod_path in modified_prod_files:
-        prod_name = Path(prod_path).stem
-        expected_test_names = {
-            f"{prod_name}Test",
-            f"{prod_name}Tests",
-            f"{prod_name}IT",
-            f"{prod_name}IntegrationTest"
-        }
-        for test_path in modified_test_files:
-            test_name = Path(test_path).stem
-            if test_name in expected_test_names:
-                num_sync_pairs += 1
-                cur_sync_pairs.append({
-                    "prod_path": prod_path,
-                    "test_path": test_path
+                rows.append({
+                    "commit_index": i,
+                    "commit": commit.hash,
+                    "date": commit.committer_date,
+                    "file_type": file_type,
+                    "path": path.replace("\\", "/"),
+                    "commit_size": commit_size,
+                    "package": extract_package(path)
                 })
 
-    if num_sync_pairs > 0:
-        if is_bugfix_message(commit.msg):
-            num_tdb_commits += 1
-            print(f"Commit {commit.hash} is likely to involve TDB behavior.")
-            print(f"Commit message: {commit.msg}")
+        # If a production file and the corresponding test file are added in the same commit,
+        # though we are unable to confirm TDD adherence as we don't know the order of additions,
+        # we could do some heuristic analysis here:
+
+        # e.g.1, to detect TDB(Test Driven Bugfixing) behavior
+        # that is, to fix a bug in production code, the developer first adds a test to replicate the bug
+        # which could be a sign of TDD adherence
+        for prod_path in modified_prod_files:
+            prod_name = Path(prod_path).stem
+            expected_test_names = {
+                f"{prod_name}Test",
+                f"{prod_name}Tests",
+                f"{prod_name}IT",
+                f"{prod_name}IntegrationTest"
+            }
+            for test_path in modified_test_files:
+                test_name = Path(test_path).stem
+                if test_name in expected_test_names:
+                    num_sync_pairs += 1
+                    cur_sync_pairs.append({
+                        "prod_path": prod_path,
+                        "test_path": test_path
+                    })
+
+        if num_sync_pairs > 0:
+            if is_bugfix_message(commit.msg):
+                num_tdb_commits += 1
+                # print(f"Commit {commit.hash} is likely to involve TDB behavior.")
+                # print(f"Commit message: {commit.msg}")
 
 # tdb vs non-tdb visualization
 non_tdb_all_count = num_all_commits - num_tdb_commits
