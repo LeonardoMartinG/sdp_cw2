@@ -11,8 +11,8 @@ START_DATE = "2018-01-01"
 END_DATE   = "2023-12-31"
 
 #local clone
-REPO_PATH = "repos/commons-lang"
-# REPO_PATH = "/home/yaoguyuan/Desktop/commons-lang"
+#REPO_PATH = "repos/commons-lang"
+REPO_PATH = "/home/yaoguyuan/Desktop/commons-lang"
 
 
 #helpers
@@ -26,15 +26,6 @@ def is_test_file(path: str) -> bool:
         and name.endswith(("Test", "Tests", "IT", "IntegrationTest"))
     )
 
-# def is_prod_file(path: str) -> bool:
-#     path = path.replace("\\", "/")
-#     name = Path(path).stem
-#     return (
-#         path.endswith(".java")
-#         and "src/main" in path
-#         and not name.endswith(("Test", "Tests", "IT", "IntegrationTest"))
-#     )
-
 def is_prod_file(path: str) -> bool:
     path = path.replace("\\", "/")
     name = Path(path).stem
@@ -44,7 +35,15 @@ def is_prod_file(path: str) -> bool:
         and not name.endswith(("Test", "Tests", "IT", "IntegrationTest"))
     )
 
-
+def extract_package(path: str) -> str:
+    path = path.replace("\\", "/")
+    if "src/java/" in path:
+        return path.split("src/java/")[1].rsplit("/", 1)[0]
+    if "src/main/java/" in path:
+        return path.split("src/main/java/")[1].rsplit("/", 1)[0]
+    if "src/test/java/" in path:
+        return path.split("src/test/java/")[1].rsplit("/", 1)[0]
+    return ""
 
 #data collection
 
@@ -98,7 +97,8 @@ for i, commit in enumerate(repo.traverse_commits()):
             "date": commit.committer_date,
             "file_type": file_type,
             "path": path.replace("\\", "/"),
-            "commit_size": commit_size
+            "commit_size": commit_size,
+            "package": extract_package(path)
         })
 
     # If a production file and the corresponding test file are added in the same commit,
@@ -151,11 +151,12 @@ test_df = df[df["file_type"] == "test"].copy()
 prod_df["stem"] = prod_df["path"].apply(lambda p: Path(p).stem)
 test_df["stem"] = test_df["path"].apply(lambda p: Path(p).stem)
 # build a lookup of test files for quick access
-test_lookup = test_df.groupby("stem")["commit_index"].min().to_dict()
+test_lookup = test_df.groupby(["stem", "package"])["commit_index"].min().to_dict()
 
 distances = []
 for _, row in prod_df.iterrows():
     prod_stem = row["stem"]
+    prod_package = row["package"]
     prod_commit_index = row["commit_index"]
     # derive the expected test stem
     expected_test_stems = [
@@ -167,8 +168,9 @@ for _, row in prod_df.iterrows():
     # set default test_commit_index as None meaning not found
     test_commit_index = None
     for test_stem in expected_test_stems:
-        if test_stem in test_lookup:
-            test_commit_index = test_lookup[test_stem]
+        lookup_key = (test_stem, prod_package)
+        if lookup_key in test_lookup:
+            test_commit_index = test_lookup[lookup_key]
             break
     if test_commit_index is not None:
         distance = test_commit_index - prod_commit_index

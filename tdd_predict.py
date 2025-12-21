@@ -159,6 +159,7 @@ first_test = (
            .groupby("base")
            .first()
            .reset_index()
+           .rename(columns={"commit_index": "test_index"})
 )
 
 first_prod = (
@@ -177,7 +178,7 @@ pairs = first_prod.merge(
     suffixes=("_prod", "_test")
 )
 
-pairs["distance"] = pairs["commit_index_test"] - pairs["prod_index"]
+pairs["distance"] = pairs["test_index"] - pairs["prod_index"]
 
 def classify_pair(row):
     if pd.isna(row["distance"]):
