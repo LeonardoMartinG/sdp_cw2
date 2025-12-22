@@ -25,7 +25,7 @@ processed_commits = set()
 for branch in branches:
     # print(f"Processing branch: {branch}")
     repo = Repository(REPO_PATH, only_in_branch=branch, only_no_merge=True)
-    for i, commit in enumerate(repo.traverse_commits()):
+    for _, commit in enumerate(repo.traverse_commits()):
         # only consider unique commits
         if commit.hash in processed_commits:
             continue
@@ -35,8 +35,8 @@ for branch in branches:
         if is_bugfix_message(commit.msg):
             num_fix_commits += 1
 
-        if i % 500 == 0:
-            print(f"Processed {i} commits")
+        if num_all_commits % 500 == 0:
+            print(f"Processed {num_all_commits} commits")
 
         modified_files = commit.modified_files
         if not modified_files:
@@ -79,7 +79,7 @@ for branch in branches:
 
             if mod.change_type.name == "ADD":
                 rows.append({
-                    "commit_index": i,
+                    "commit_index": num_all_commits,
                     "commit": commit.hash,
                     "date": commit.committer_date,
                     "file_type": file_type,

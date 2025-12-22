@@ -27,6 +27,8 @@ def extract_package(path: str) -> str:
         return path.split("src/main/java/")[1].rsplit("/", 1)[0]
     if "src/test/java/" in path:
         return path.split("src/test/java/")[1].rsplit("/", 1)[0]
+    if "src/test/" in path:
+        return path.split("src/test/")[1].rsplit("/", 1)[0]
     return ""
 
 def is_bugfix_message(msg: str) -> bool:
