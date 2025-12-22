@@ -178,11 +178,12 @@ test_df = df[df["file_type"] == "test"].copy()
 # extract the stem for easy matching
 prod_df["stem"] = prod_df["path"].apply(lambda p: Path(p).stem)
 test_df["stem"] = test_df["path"].apply(lambda p: Path(p).stem)
-# build a lookup of test files for quick access
-test_lookup = test_df.groupby(["stem", "package"])["commit_index"].min().to_dict()
+# only extract earliest addition of each (stem, package) pair
+prod_first_lookup = prod_df.groupby(["stem", "package"])["commit_index"].min().reset_index()
+test_first_lookup = test_df.groupby(["stem", "package"])["commit_index"].min().to_dict()
 
 distances = []
-for _, row in prod_df.iterrows():
+for _, row in prod_first_lookup.iterrows():
     prod_stem = row["stem"]
     prod_package = row["package"]
     prod_commit_index = row["commit_index"]
@@ -197,8 +198,8 @@ for _, row in prod_df.iterrows():
     test_commit_index = None
     for test_stem in expected_test_stems:
         lookup_key = (test_stem, prod_package)
-        if lookup_key in test_lookup:
-            test_commit_index = test_lookup[lookup_key]
+        if lookup_key in test_first_lookup:
+            test_commit_index = test_first_lookup[lookup_key]
             break
     if test_commit_index is not None:
         distance = test_commit_index - prod_commit_index
