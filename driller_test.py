@@ -9,8 +9,8 @@ START_DATE = "2018-01-01"
 END_DATE   = "2023-12-31"
 
 #local clone
-#REPO_PATH = "repos/commons-lang"
-REPO_PATH = "/home/yaoguyuan/Desktop/commons-lang"
+REPO_PATH = "repos/commons-lang"
+#REPO_PATH = "/home/yaoguyuan/Desktop/commons-lang"
 
 #data collection
 rows = []
