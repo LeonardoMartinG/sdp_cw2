@@ -7,7 +7,7 @@ from visualizer import Visualizer
 
 def main():
     # 1. Mine data from the repository
-    df, stats = mine_repository(Config.REPO_PATH)    
+    df, stats = mine_repository(Config.REPO_PATH, Config.MODE)    
     if df.empty:
         raise RuntimeError("No Java test/production files detected.")
     

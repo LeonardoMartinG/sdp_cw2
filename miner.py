@@ -5,7 +5,9 @@ from utils import *
 from analyzer import Analyzer
 from config import Config
 
-def mine_repository(repo_path):
+def mine_repository(repo_path, mode):
+    if mode not in Config.MODE_OPTIONS:
+        raise ValueError(f"Invalid mode: {mode}. Choose from {Config.MODE_OPTIONS}.")
 
     rows = []
     stats = {
@@ -23,6 +25,12 @@ def mine_repository(repo_path):
         repo = Repository(repo_path, only_in_branch=branch, only_no_merge=True)
         
         for commit in repo.traverse_commits():
+            # Here we filter those squash and merge commits
+            if is_squashed_message(commit.msg):
+                if Config.MODE == "DEBUG":
+                    print(f"Skipping squash and merge commit: {commit.hash}")
+                continue
+
             # only consider unique commits
             if commit.hash in processed_hashes:
                 continue
@@ -37,6 +45,16 @@ def mine_repository(repo_path):
 
             modified_files = commit.modified_files
             commit_size = len(modified_files)
+
+            # print some info when debugging
+            if Config.MODE == "DEBUG":
+                print(f"commit hash: {commit.hash}")
+                print(f"commit size: {commit_size}")
+                print(f"added_files: {[mod.new_path or mod.old_path for mod in modified_files if mod.change_type.name == 'ADD']}")
+                print(f"modified_files: {[mod.new_path or mod.old_path for mod in modified_files if mod.change_type.name == 'MODIFY']}")
+                print(f"commit msg: {commit.msg}")
+                print("---------------------------------------------------")
+
             if commit_size == 0 or commit_size > Config.MAX_MODIFIED_FILES:
                 continue
 

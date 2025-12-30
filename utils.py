@@ -1,5 +1,6 @@
 from pathlib import Path
 from git import Repo
+import re
 
 def is_test_file(path: str) -> bool:
     path = path.replace("\\", "/")
@@ -37,6 +38,12 @@ def is_bugfix_message(msg: str) -> bool:
     ]
     msg_lower = msg.lower()
     return any(keyword in msg_lower for keyword in bugfix_keywords)
+
+def is_squashed_message(msg: str) -> bool:
+    # if the commit message contains '(#123)' pattern, consider it a squash and merge commit
+    # we can use regular expression to detect this pattern
+    pattern = r"\(#\d+\)"
+    return re.search(pattern, msg) is not None
 
 def get_all_branches(repo_path: str) -> list[str]:
     repo = Repo(repo_path)
