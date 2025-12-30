@@ -12,6 +12,25 @@ def main():
         raise RuntimeError("No Java test/production files detected.")
     
     # Data preprocessing
+    # ==============================================================================
+    # FIX: Global Sorting and Re-indexing
+    # ==============================================================================
+    
+    # global sort by date
+    df = df.sort_values("date").reset_index(drop=True)
+    
+    # create unique commit list with new index
+    unique_commits = df[["commit", "date"]].drop_duplicates("commit").sort_values("date").reset_index(drop=True)
+    unique_commits["new_index"] = unique_commits.index
+    
+    # drop old commit_index
+    df = df.drop(columns=["commit_index"])
+    # merge to get new commit_index
+    df = df.merge(unique_commits[["commit", "new_index"]], on="commit", how="left")
+    # rename column
+    df = df.rename(columns={"new_index": "commit_index"})
+    # ==============================================================================
+
     df["date"] = pd.to_datetime(df["date"], utc=True).dt.tz_convert(None)
     df["month"] = df["date"].dt.to_period("M")   
     # Export CSV

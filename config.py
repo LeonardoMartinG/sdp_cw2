@@ -10,7 +10,7 @@ class Config:
     
     # local clone
     # REPO_PATH = "repos/commons-lang"
-    REPO_PATH = "/home/yaoguyuan/Desktop/dubbo"
+    REPO_PATH = "/home/yaoguyuan/Desktop/commons-lang"
     
     # output file
     OUTPUT_CSV = 'driller_output.csv'
